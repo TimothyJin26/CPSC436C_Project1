@@ -157,3 +157,67 @@ Transformer-based text classification model fine-tuned on lyric analysis tasks
 * Required claims: `sub` (user ID), `email_verified`, `cognito:groups` (optional for role-based access)
 * Token expiration: 1 hour (configurable in Cognito)
 * Refresh tokens handled by client applications
+
+
+## 7) Privacy/Ethics (PIA excerpt)
+
+**Data inventory:** 
+- Lyrics text, analysis results (user-controlled retention)
+- User authentication tokens (account lifetime)
+- Request/error logs: no user IDs, IPs, or personal data
+- Usage aggregates: song popularity counts (k>100 only)
+
+**Purpose:** Service delivery, system monitoring, capacity planning
+
+**Retention:** 
+- Raw API logs TTL ≤ 30 days
+- Error logs ≤ 90 days  
+- Usage aggregates 180 days
+- User data: indefinite (user-controlled)
+
+**Access:** Least-privilege; users access own data only; ops team time-limited log access
+
+**Telemetry decision matrix:**
+
+| Metric | Value | Invasiveness | Effort | Decision |
+|--------|-------|--------------|--------|----------|
+| Response times | High | None | Low | ✅ Keep |
+| Error rates | High | None | Low | ✅ Keep |
+| Popular songs (k>100) | Medium | Low | Low | ✅ Keep |
+| User analysis frequency | Medium | Medium | Low | ❌ Drop |
+| Individual song requests | Low | High | Low | ❌ Drop |
+| User music taste profiling | Low | High | High | ❌ Drop |
+
+**Reciprocity:** Users provide lyrics → receive AI interpretations + history. 80% user value, 20% collective improvement.
+
+## 8) Architecture Diagram
+
+![architecture diagram](Project1_436C.png)
+
+
+## 9) Risks & Tests
+
+**AI bias risk (cultural/genre misinterpretation):** acceptance test—user relevance rating ≥ 4.0/5.0 across 5+ musical genres, 3+ languages
+
+**Analysis quality risk (hallucinated interpretations):** offline validation—confidence scores correlate with human expert ratings (r ≥ 0.6) on 100-song test set  
+
+**Cost drift:** verify monthly Bedrock costs stay ≤ $0.50 per analysis under normal load; alert if 7-day rolling average exceeds threshold
+
+## 10) Measurement Plan
+
+**Baseline vs Model experiment:** A/B test keyword-matching baseline vs transformer model on 200 lyrics; measure user rating difference (target: +0.5 improvement, significance p<0.05)
+
+**SLA measurement:**
+- Latency: CloudWatch p95 timer from API request to analysis complete ≤ 180s
+- Cost: DynamoDB + Bedrock + Lambda costs per analysis tracked via AWS Cost Explorer tags ≤ $0.50
+
+### X.X Socratic Log
+* Prompt A (design alternatives): 
+    * Prompt - "I want to use AWS to create this project. Currently the architecture is API gateway to Lambda to bedrock to dynamodb to store generated explanations and the full lyrics. What are some alternatives to storage options?"
+    * Output - "... Stick with DynamoDB for your current use case because: Perfect fit for simple key-value lookups (song_id → analysis)
+Serverless and scales automatically with Lambda..."
+* Prompt B (red-team): 
+    * “Will the maximum document size for DDB be an issue?”
+    * Output: "... Cons of Pure DynamoDB: 400KB item limit - Long songs might hit this (epic songs, opera, concept albums) ..."
+* Inflection point: It is pointed out that documents in DDB have a maximum size of 400kb. If I wanted to store all types of songs, the full lyrics may not fit into a single document. Costs are also much higher than S3 so I will store the static lyric data there instead. 
+* Outcome: Lyrics can now be uploaded and stored in S3 while analytics and meanings generated from these uploaded lyrics can still be stored in DDB. 
